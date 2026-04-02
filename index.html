@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Finance Dashboard</title>
+
+  <!-- React CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f5f7fa;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .cards {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      flex: 1;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .income { color: green; }
+    .expense { color: red; }
+
+    .container {
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    input, select, button {
+      padding: 6px;
+      margin-right: 10px;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    button {
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+function App() {
+  const [transactions, setTransactions] = React.useState([
+    { id:1, date:"2026-04-01", amount:5000, category:"Salary", type:"income" },
+    { id:2, date:"2026-04-02", amount:800, category:"Food", type:"expense" },
+    { id:3, date:"2026-04-03", amount:1200, category:"Shopping", type:"expense" }
+  ]);
+
+  const [role, setRole] = React.useState("viewer");
+  const [search, setSearch] = React.useState("");
+  const [filter, setFilter] = React.useState("all");
+
+  // CALCULATIONS
+  const income = transactions
+    .filter(t => t.type === "income")
+    .reduce((a,b)=>a+b.amount,0);
+
+  const expense = transactions
+    .filter(t => t.type === "expense")
+    .reduce((a,b)=>a+b.amount,0);
+
+  const balance = income - expense;
+
+  // DELETE
+  const deleteTx = (id) => {
+    setTransactions(transactions.filter(t => t.id !== id));
+  };
+
+  // ADD
+  const addTx = () => {
+    if(role !== "admin") return alert("Admin only!");
+
+    const amount = prompt("Amount:");
+    const category = prompt("Category:");
+    const type = prompt("income/expense:");
+
+    if(!amount || !category || !type) return;
+
+    setTransactions([
+      ...transactions,
+      {
+        id: Date.now(),
+        date: new Date().toISOString().split("T")[0],
+        amount: Number(amount),
+        category,
+        type
+      }
+    ]);
+  };
+
+  // FILTER
+  const filtered = transactions.filter(t =>
+    (filter === "all" || t.type === filter) &&
+    t.category.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // INSIGHT
+  let map = {};
+  transactions.forEach(t => {
+    if(t.type === "expense"){
+      map[t.category] = (map[t.category] || 0) + t.amount;
+    }
+  });
+
+  const highest = Object.keys(map).reduce((a,b)=>
+    map[a] > map[b] ? a : b, ""
+  );
+
+  // CHART
+  React.useEffect(() => {
+    const ctx = document.getElementById("chart");
+    if(!ctx) return;
+
+    if(window.myChart) window.myChart.destroy();
+
+    const data = {};
+    transactions.forEach(t => {
+      if(t.type === "expense"){
+        data[t.category] = (data[t.category] || 0) + t.amount;
+      }
+    });
+
+    window.myChart = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels: Object.keys(data),
+        datasets: [{
+          data: Object.values(data)
+        }]
+      }
+    });
+  }, [transactions]);
+
+  return (
+    <div className="container">
+
+      {/* HEADER */}
+      <div className="header">
+        <h2>Finance Dashboard</h2>
+
+        <select onChange={(e)=>setRole(e.target.value)}>
+          <option value="viewer">Viewer</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      {/* CARDS */}
+      <div className="cards">
+        <div className="card">
+          <h3>Balance</h3>
+          <p>₹ {balance}</p>
+        </div>
+
+        <div className="card income">
+          <h3>Income</h3>
+          <p>₹ {income}</p>
+        </div>
+
+        <div className="card expense">
+          <h3>Expenses</h3>
+          <p>₹ {expense}</p>
+        </div>
+      </div>
+
+      {/* CHART */}
+      <div className="box">
+        <h3>Spending Breakdown</h3>
+        <canvas id="chart"></canvas>
+      </div>
+
+      {/* INSIGHTS */}
+      <div className="box">
+        <h3>Insights</h3>
+        <p>Highest spending: {highest || "N/A"}</p>
+      </div>
+
+      {/* TABLE */}
+      <div className="box">
+
+        <input placeholder="Search" onChange={(e)=>setSearch(e.target.value)} />
+
+        <select onChange={(e)=>setFilter(e.target.value)}>
+          <option value="all">All</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+
+        <button onClick={addTx}>Add</button>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filtered.map(t => (
+              <tr key={t.id}>
+                <td>{t.date}</td>
+                <td>₹ {t.amount}</td>
+                <td>{t.category}</td>
+                <td>{t.type}</td>
+                <td>
+                  {role === "admin" && (
+                    <button onClick={()=>deleteTx(t.id)}>Delete</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+      </div>
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+</script>
+
+</body>
+</html>
